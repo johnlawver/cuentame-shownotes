@@ -1,0 +1,10 @@
+{
+  "name": "@cuentame/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./types.ts",
+  "exports": {
+    ".": "./types.ts",
+    "./utils": "./utils.ts"
+  }
+}

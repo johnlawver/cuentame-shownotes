@@ -1,0 +1,17 @@
+{
+  "name": "cuentame-shownotes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "build": "pnpm run --recursive build",
+    "deploy:rss": "cd apps/rss-worker && pnpm run deploy",
+    "deploy:admin": "cd apps/admin && pnpm run deploy",
+    "deploy:public": "cd apps/public && pnpm run deploy"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

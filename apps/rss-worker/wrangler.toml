@@ -1,0 +1,22 @@
+name = "cuentame-rss-worker"
+main = "src/index.ts"
+compatibility_date = "2024-07-01"
+
+# Cron trigger - runs daily at 6 AM UTC
+[triggers]
+crons = ["0 6 * * *"]
+
+# KV namespace binding
+[[kv_namespaces]]
+binding = "CUENTAME_SHOWNOTES_DATA"
+id = "9d5c9b089abe4a3e80389bbc41552e4a"
+preview_id = "0fb42b59064241ceac2239d54fa256a1"
+
+# Environment variables
+[vars]
+RSS_FEED_URL = "https://anchor.fm/s/4baec630/podcast/rss"
+
+# For production, set secrets with: wrangler secret put ADMIN_USERNAME
+# [secrets]
+# ADMIN_USERNAME = "admin"
+# ADMIN_PASSWORD = "my-secure-password"
