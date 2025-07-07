@@ -12,8 +12,15 @@ import {
   parseEpisodeNumber, 
   createEmptyIndex,
   addEpisodeToIndex,
-  validateEpisode 
+  validateEpisode,
+  extractGoogleDocsUrls 
 } from '@cuentame/shared/utils';
+
+interface KVNamespace {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+}
+
 
 interface Env {
   CUENTAME_SHOWNOTES_DATA: KVNamespace;
@@ -28,8 +35,7 @@ interface ScheduledEvent {
 export default {
   async scheduled(
     event: ScheduledEvent,
-    env: Env,
-    ctx: ExecutionContext
+    env: Env
   ): Promise<void> {
     console.log(`RSS Worker triggered at ${new Date(event.scheduledTime).toISOString()}`);
     
@@ -132,9 +138,14 @@ async function processRSSFeed(env: Env): Promise<void> {
   const existingIndexText = await env.CUENTAME_SHOWNOTES_DATA.get('episodes_index');
   let episodesIndex: EpisodesIndex;
   
-  if (existingIndexText) {
-    episodesIndex = JSON.parse(existingIndexText);
-    console.log(`Loaded existing index with ${episodesIndex.episodes.length} episodes`);
+  if (existingIndexText && existingIndexText.trim()) {
+    try {
+      episodesIndex = JSON.parse(existingIndexText);
+      console.log(`Loaded existing index with ${episodesIndex.episodes.length} episodes`);
+    } catch (error) {
+      console.error('Failed to parse existing index, creating new one:', error);
+      episodesIndex = createEmptyIndex();
+    }
   } else {
     episodesIndex = createEmptyIndex();
     console.log('Created new episodes index');
@@ -191,21 +202,30 @@ async function convertRSSItemToEpisode(
                  item['enclosure']?.['@_url']?.trim();
   
   const publishDate = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
-  const duration = item['itunes:duration'] || item['itunes:duration']?.trim() || '00:00:00';
+  const duration = item['itunes:duration']?.trim() || '00:00:00';
+  
+  // Extract Google Docs URLs from description
+  const googleDocsUrls = extractGoogleDocsUrls(description);
+  
+  if (googleDocsUrls.length > 0) {
+    console.log(`Found ${googleDocsUrls.length} Google Docs URLs for episode:`, googleDocsUrls);
+  }
   
   if (!title || !audioUrl) {
-    console.warn('Skipping item with missing title or audio URL');
+    console.warn('Skipping item with missing title or audio URL', { title: !!title, audioUrl: !!audioUrl });
     return null;
   }
   
-  // Extract episode number
+  // Extract episode number with proper initialization
   let episodeNumber = 0;
+  
+  // Try iTunes episode field first
   if (item['itunes:episode']) {
     episodeNumber = parseEpisodeNumber(item['itunes:episode']);
   }
   
   // If no episode number from iTunes, try to extract from title
-  if (episodeNumber === 0) {
+  if (episodeNumber === 0 && title) {
     const titleMatch = title.match(/(?:episode\s*|ep\s*|#)(\d+)/i);
     if (titleMatch) {
       episodeNumber = parseInt(titleMatch[1], 10);
@@ -214,21 +234,29 @@ async function convertRSSItemToEpisode(
   
   // If still no episode number, derive from existing episodes
   if (episodeNumber === 0) {
-    const maxEpisode = Math.max(0, ...existingIndex.episodes.map(e => e.episodeNumber));
+    const existingNumbers = existingIndex.episodes.map(e => e.episodeNumber);
+    const maxEpisode = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
     episodeNumber = maxEpisode + 1;
   }
   
-  // Check if episode already exists
-  const existingEpisode = existingIndex.episodes.find(e => 
-    e.episodeNumber === episodeNumber || 
-    e.audioUrl === audioUrl ||
-    (e.title === title && e.publishDate === publishDate)
-  );
+  // Check if episode already exists (with better error handling)
+  const existingEpisode = existingIndex.episodes.find(e => {
+    try {
+      return e.episodeNumber === episodeNumber || 
+             e.audioUrl === audioUrl ||
+             (e.title === title && e.publishDate === publishDate);
+    } catch (error) {
+      console.warn('Error checking existing episode:', error);
+      return false;
+    }
+  });
   
   if (existingEpisode) {
     console.log(`Episode ${episodeNumber} already exists, skipping`);
     return null;
   }
+  
+  console.log(`Creating new episode: ${episodeNumber} - ${title}`);
   
   // Create new episode
   const episode: Episode = {
@@ -241,6 +269,7 @@ async function convertRSSItemToEpisode(
     audioUrl,
     shownotes: '', // Empty initially
     translations: [], // Empty initially
+    googleDocsUrls, // Extracted Google Docs URLs
     status: 'draft' // New episodes start as draft
   };
   

@@ -8,6 +8,7 @@ export interface Episode {
   audioUrl: string;
   shownotes: string; // Markdown content
   translations: Translation[];
+  googleDocsUrls: string[]; // Google Docs URLs extracted from description
   status: EpisodeStatus;
 }
 
@@ -26,16 +27,21 @@ export interface EpisodesIndex {
 }
 
 // RSS Feed Types
+export interface RSSEnclosure {
+  url?: string;
+  '@_url'?: string;
+  [key: string]: any; // Allow for other XML attributes
+}
+
 export interface RSSItem {
   guid?: string;
   title?: string;
   description?: string;
   pubDate?: string;
-  enclosure?: {
-    url?: string;
-  };
+  enclosure?: RSSEnclosure;
   'itunes:duration'?: string;
   'itunes:episode'?: string | number;
+  [key: string]: any; // Allow for other RSS fields
 }
 
 export interface RSSFeed {

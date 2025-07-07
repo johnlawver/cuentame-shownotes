@@ -7,14 +7,16 @@
         "deploy": "wrangler deploy",
         "tail": "wrangler tail",
         "debug-rss": "curl https://cuentame-rss-worker.davesmetalworks.workers.dev/debug-rss",
-        "trigger": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/trigger"
+        "trigger": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/trigger",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@cuentame/shared": "workspace:*",
         "fast-xml-parser": "^4.2.5"
     },
     "devDependencies": {
-        "wrangler": "^4.23.0",
-        "@cloudflare/workers-types": "^4.0.0"
+        "@cloudflare/workers-types": "^4.20250705.0",
+        "typescript": "^5.0.0",
+        "wrangler": "^4.23.0"
     }
 }

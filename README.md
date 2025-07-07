@@ -72,7 +72,11 @@ pnpm run deploy
 - [x] Episode metadata extraction
 - [x] Cloudflare KV storage
 - [x] Duplicate detection
-- [x] Cron scheduling
+- [x] Cron scheduling (daily at 6 AM UTC)
+- [x] Google Docs URL extraction
+- [x] Debug endpoints (`/debug-rss`, `/trigger`, `/health`)
+- [x] Manual trigger capability
+- [x] Comprehensive error handling
 
 ### 🚧 Phase 2: Admin Panel (In Progress)
 
@@ -108,7 +112,8 @@ pnpm run deploy:rss
 
 - [RSS Worker Setup](./apps/rss-worker/README.md) - Detailed setup and configuration
 - [Product Requirements Document](./docs/PRD.md) - Complete project specifications
-- [API Documentation](./docs/API.md) - API endpoints and schemas (Coming Soon)
+- [API Documentation](./docs/API.md) - API endpoints and schemas
+- [KV Schema Documentation](./docs/KV-Schema.md) - Data structure and storage schema
 
 ## 🌍 Environment Variables
 
@@ -160,5 +165,5 @@ For issues and questions:
 
 ---
 
-**Current Version**: 1.0.0  
-**Last Updated**: July 6, 2025
+**Current Version**: 1.1.0  
+**Last Updated**: July 7, 2025

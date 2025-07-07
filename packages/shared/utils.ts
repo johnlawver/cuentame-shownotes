@@ -1,6 +1,41 @@
 import type { Episode, EpisodesIndex, SortPreferences } from './types.js';
 
 /**
+ * Extract Google Docs URLs from HTML description
+ */
+export function extractGoogleDocsUrls(htmlDescription: string): string[] {
+  if (!htmlDescription) return [];
+  
+  const googleDocsUrls: string[] = [];
+  
+  // Regex to match Google Docs URLs in href attributes
+  const hrefRegex = /href=["']([^"']*https:\/\/docs\.google\.com\/document[^"']*)["']/gi;
+  
+  // Also match standalone URLs (not in href)
+  const standaloneRegex = /https:\/\/docs\.google\.com\/document\/[^\s<>"'()]+/gi;
+  
+  let match;
+  
+  // Extract from href attributes
+  while ((match = hrefRegex.exec(htmlDescription)) !== null) {
+    const url = match[1];
+    if (url && !googleDocsUrls.includes(url)) {
+      googleDocsUrls.push(url);
+    }
+  }
+  
+  // Extract standalone URLs
+  while ((match = standaloneRegex.exec(htmlDescription)) !== null) {
+    const url = match[0];
+    if (url && !googleDocsUrls.includes(url)) {
+      googleDocsUrls.push(url);
+    }
+  }
+  
+  return googleDocsUrls;
+}
+
+/**
  * Generate a UUID v4
  */
 export function generateUUID(): string {
