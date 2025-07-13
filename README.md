@@ -74,8 +74,10 @@ pnpm run deploy
 - [x] Duplicate detection
 - [x] Cron scheduling (daily at 6 AM UTC)
 - [x] Google Docs URL extraction
-- [x] Debug endpoints (`/debug-rss`, `/trigger`, `/health`)
+- [x] Debug endpoints (`/debug-rss`, `/debug-kv`, `/trigger`, `/health`)
 - [x] Manual trigger capability
+- [x] Data maintenance endpoints (`/reset-kv`, `/reprocess`)
+- [x] Fixed episode number parsing for title patterns
 - [x] Comprehensive error handling
 
 ### 🚧 Phase 2: Admin Panel (In Progress)

@@ -7,7 +7,10 @@
         "deploy": "wrangler deploy",
         "tail": "wrangler tail",
         "debug-rss": "curl https://cuentame-rss-worker.davesmetalworks.workers.dev/debug-rss",
+        "debug-kv": "curl https://cuentame-rss-worker.davesmetalworks.workers.dev/debug-kv",
         "trigger": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/trigger",
+        "reset-kv": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reset-kv",
+        "reprocess": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reprocess",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

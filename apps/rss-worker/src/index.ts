@@ -91,6 +91,55 @@ export default {
       }
     }
     
+    // Debug endpoint to inspect current KV episodes index
+    if (url.pathname === '/debug-kv' && request.method === 'GET') {
+      try {
+        const existingIndexText = await env.CUENTAME_SHOWNOTES_DATA.get('episodes_index');
+        if (!existingIndexText) {
+          return new Response(JSON.stringify({ message: 'No episodes index found in KV' }, null, 2), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        
+        const episodesIndex = JSON.parse(existingIndexText);
+        return new Response(JSON.stringify({
+          totalEpisodes: episodesIndex.episodes.length,
+          lastUpdated: episodesIndex.lastUpdated,
+          episodes: episodesIndex.episodes.map((ep: Episode) => ({
+            episodeNumber: ep.episodeNumber,
+            title: ep.title,
+            publishDate: ep.publishDate,
+            status: ep.status,
+            hasShownotes: !!ep.shownotes
+          }))
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(`Debug KV failed: ${error}`, { status: 500 });
+      }
+    }
+    
+    // Reset/clear KV episodes index
+    if (url.pathname === '/reset-kv' && request.method === 'POST') {
+      try {
+        await env.CUENTAME_SHOWNOTES_DATA.put('episodes_index', JSON.stringify(createEmptyIndex()));
+        return new Response('Episodes index cleared successfully', { status: 200 });
+      } catch (error) {
+        return new Response(`Reset KV failed: ${error}`, { status: 500 });
+      }
+    }
+    
+    // Reprocess RSS with fixed logic (preserves shownotes and other manual data)
+    if (url.pathname === '/reprocess' && request.method === 'POST') {
+      try {
+        await reprocessRSSWithPreservation(env);
+        return new Response('RSS reprocessing completed with fixed episode numbering (shownotes preserved)', { status: 200 });
+      } catch (error) {
+        return new Response(`Reprocess failed: ${error}`, { status: 500 });
+      }
+    }
+    
     // Health check endpoint
     if (url.pathname === '/health') {
       return new Response('RSS Worker is healthy', { status: 200 });
@@ -219,24 +268,27 @@ async function convertRSSItemToEpisode(
   // Extract episode number with proper initialization
   let episodeNumber = 0;
   
-  // Try iTunes episode field first
-  if (item['itunes:episode']) {
-    episodeNumber = parseEpisodeNumber(item['itunes:episode']);
-  }
-  
-  // If no episode number from iTunes, try to extract from title
-  if (episodeNumber === 0 && title) {
-    const titleMatch = title.match(/(?:episode\s*|ep\s*|#)(\d+)/i);
-    if (titleMatch) {
-      episodeNumber = parseInt(titleMatch[1], 10);
+  // Prioritize title parsing since it's the source of truth for this podcast
+  if (title) {
+    // Check if this is the intro episode
+    if (title.includes('¡Cuéntame! -What is this podcast all about?')) {
+      episodeNumber = 0;
+    } else {
+      // Try to match number at the beginning of title (e.g., "194. La inteligencia artificial")
+      const titlePrefixMatch = title.match(/^(\d+)\.\s*/);
+      if (titlePrefixMatch) {
+        episodeNumber = parseInt(titlePrefixMatch[1], 10);
+      } else {
+        // Episode doesn't follow standard pattern - try iTunes episode as fallback
+        if (item['itunes:episode']) {
+          episodeNumber = parseEpisodeNumber(item['itunes:episode']);
+          console.warn(`Using iTunes episode number ${episodeNumber} for non-standard title: "${title}"`);
+        } else {
+          console.warn(`Episode title doesn't follow standard pattern, requires manual review: "${title}"`);
+          return null; // Skip episodes that don't follow the pattern
+        }
+      }
     }
-  }
-  
-  // If still no episode number, derive from existing episodes
-  if (episodeNumber === 0) {
-    const existingNumbers = existingIndex.episodes.map(e => e.episodeNumber);
-    const maxEpisode = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
-    episodeNumber = maxEpisode + 1;
   }
   
   // Check if episode already exists (with better error handling)
@@ -281,4 +333,96 @@ async function convertRSSItemToEpisode(
   }
   
   return episode;
+}
+
+async function reprocessRSSWithPreservation(env: Env): Promise<void> {
+  console.log('Starting RSS reprocessing with preservation of manual data...');
+  
+  // First, get existing episodes to preserve shownotes and other manual data
+  const existingIndexText = await env.CUENTAME_SHOWNOTES_DATA.get('episodes_index');
+  const existingEpisodes = new Map<number, Episode>();
+  
+  if (existingIndexText && existingIndexText.trim()) {
+    try {
+      const existingIndex = JSON.parse(existingIndexText);
+      for (const episode of existingIndex.episodes) {
+        existingEpisodes.set(episode.episodeNumber, episode);
+      }
+      console.log(`Loaded ${existingEpisodes.size} existing episodes for preservation`);
+    } catch (error) {
+      console.error('Failed to parse existing index:', error);
+    }
+  }
+  
+  // Fetch and parse RSS feed (same as processRSSFeed)
+  const rssUrl = env.RSS_FEED_URL || 'https://anchor.fm/s/4baec630/podcast/rss';
+  console.log(`Fetching RSS from: ${rssUrl}`);
+  
+  const response = await fetch(rssUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`);
+  }
+  
+  const rssText = await response.text();
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text'
+  });
+  
+  const rssData: RSSFeed = parser.parse(rssText);
+  const channel = rssData.rss?.channel;
+  if (!channel) {
+    throw new Error('Invalid RSS feed structure: missing channel');
+  }
+  
+  const items = Array.isArray(channel.item) ? channel.item : [channel.item];
+  console.log(`Found ${items.length} episodes in RSS feed`);
+  
+  // Start with empty index
+  let episodesIndex = createEmptyIndex();
+  let processedCount = 0;
+  
+  // Process each RSS item with preservation logic
+  for (const item of items) {
+    if (!item) continue;
+    
+    try {
+      const newEpisode = await convertRSSItemToEpisode(item, episodesIndex);
+      
+      if (newEpisode) {
+        // Check if we have existing data for this episode number
+        const existingEpisode = existingEpisodes.get(newEpisode.episodeNumber);
+        
+        if (existingEpisode) {
+          // Preserve manual data from existing episode
+          const mergedEpisode: Episode = {
+            ...newEpisode, // Use new RSS data as base
+            shownotes: existingEpisode.shownotes || newEpisode.shownotes, // Preserve shownotes
+            translations: existingEpisode.translations || newEpisode.translations, // Preserve translations
+            status: existingEpisode.status === 'draft' ? 'draft' : newEpisode.status, // Keep non-draft status
+            episodeId: existingEpisode.episodeId // Preserve original ID
+          };
+          
+          episodesIndex = addEpisodeToIndex(episodesIndex, mergedEpisode);
+          console.log(`Reprocessed episode ${newEpisode.episodeNumber} (preserved shownotes: ${!!existingEpisode.shownotes})`);
+        } else {
+          episodesIndex = addEpisodeToIndex(episodesIndex, newEpisode);
+          console.log(`Added new episode: ${newEpisode.episodeNumber} - ${newEpisode.title}`);
+        }
+        
+        processedCount++;
+      }
+    } catch (error) {
+      console.error('Error processing RSS item during reprocess:', error);
+    }
+  }
+  
+  // Save updated index
+  await env.CUENTAME_SHOWNOTES_DATA.put(
+    'episodes_index',
+    JSON.stringify(episodesIndex)
+  );
+  
+  console.log(`Reprocessing completed: ${processedCount} episodes processed with preservation of manual data`);
 }

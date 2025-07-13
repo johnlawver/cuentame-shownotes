@@ -122,7 +122,7 @@ pnpm run dev
 
 ### Testing Endpoints
 
-The worker exposes several endpoints for testing:
+The worker exposes several endpoints for testing and maintenance:
 
 ```bash
 # Health check
@@ -133,6 +133,15 @@ curl -X POST https://your-worker.workers.dev/trigger
 
 # Debug RSS structure (helpful for troubleshooting)
 curl https://your-worker.workers.dev/debug-rss
+
+# Debug current KV episodes data
+curl https://your-worker.workers.dev/debug-kv
+
+# Reset/clear all episodes from KV (use with caution)
+curl -X POST https://your-worker.workers.dev/reset-kv
+
+# Reprocess RSS with fixed episode numbering (preserves shownotes)
+curl -X POST https://your-worker.workers.dev/reprocess
 ```
 
 ### Local Testing Scripts
@@ -145,6 +154,15 @@ pnpm run trigger
 
 # Debug RSS feed structure
 pnpm run debug-rss
+
+# Debug current KV episodes data
+pnpm run debug-kv
+
+# Reset/clear all episodes from KV (use with caution)
+pnpm run reset-kv
+
+# Reprocess RSS with fixed episode numbering (preserves shownotes)
+pnpm run reprocess
 
 # Monitor real-time logs
 pnpm run tail
@@ -229,6 +247,31 @@ Use the debug endpoint to inspect RSS structure:
 curl https://your-worker.workers.dev/debug-rss
 ```
 
+### Data Maintenance Operations
+
+**Debug Current Episodes:**
+```bash
+curl https://your-worker.workers.dev/debug-kv
+# Shows episode count, last updated time, and summary of all episodes
+```
+
+**Reprocess with Episode Number Fix:**
+```bash
+curl -X POST https://your-worker.workers.dev/reprocess
+# Rebuilds episodes with correct numbering while preserving shownotes
+```
+
+**Reset All Episodes (Development Only):**
+```bash
+curl -X POST https://your-worker.workers.dev/reset-kv
+# Completely clears all episode data
+```
+
+**Backup Episodes Data:**
+```bash
+wrangler kv:key get "episodes_index" --namespace-id="your-namespace-id" > episodes-backup.json
+```
+
 ### Manual Operations
 
 **Trigger RSS Processing:**
@@ -237,16 +280,10 @@ curl https://your-worker.workers.dev/debug-rss
 curl -X POST https://your-worker.workers.dev/trigger
 ```
 
-**Clear All Episodes (Development Only):**
+**Clear All Episodes (Alternative Method):**
 
 ```bash
 wrangler kv:key delete "episodes_index" --namespace-id="your-namespace-id"
-```
-
-**Backup Episodes Data:**
-
-```bash
-wrangler kv:key get "episodes_index" --namespace-id="your-namespace-id" > episodes-backup.json
 ```
 
 ## 📈 Performance
