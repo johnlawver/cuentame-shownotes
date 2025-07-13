@@ -1,0 +1,38 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Cuentame Admin Panel">
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+      <h1 class="text-3xl font-bold text-gray-900 mb-8">Cuentame Admin Panel</h1>
+      
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Welcome</h2>
+        <p class="text-gray-600 mb-6">
+          Manage episodes, shownotes, and translations for the Cuentame podcast.
+        </p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <a 
+            href="/episodes" 
+            class="block p-4 border border-gray-200 rounded-lg hover:border-primary-500 hover:shadow-md transition-all"
+          >
+            <h3 class="font-medium text-gray-900 mb-2">Episodes</h3>
+            <p class="text-sm text-gray-500">View and manage episode metadata</p>
+          </a>
+          
+          <div class="block p-4 border border-gray-200 rounded-lg opacity-50">
+            <h3 class="font-medium text-gray-900 mb-2">Shownotes</h3>
+            <p class="text-sm text-gray-500">Edit episode transcripts (Coming Soon)</p>
+          </div>
+          
+          <div class="block p-4 border border-gray-200 rounded-lg opacity-50">
+            <h3 class="font-medium text-gray-900 mb-2">Translations</h3>
+            <p class="text-sm text-gray-500">Manage translations (Coming Soon)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

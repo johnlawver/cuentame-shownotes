@@ -1,0 +1,347 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { createRSSWorkerClient } from '../../lib/rss-worker';
+
+let episodes = [];
+let error = null;
+
+try {
+  const client = createRSSWorkerClient();
+  episodes = await client.getEpisodes();
+} catch (e) {
+  error = e instanceof Error ? e.message : 'Failed to fetch episodes';
+  console.error('Error fetching episodes:', e);
+}
+---
+
+<Layout title="Episodes - Cuentame Admin">
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Episodes</h1>
+        <button 
+          id="sync-button"
+          class="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          <span id="sync-text">Sync from RSS</span>
+        </button>
+      </div>
+
+      <!-- Filter and Sort Controls -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div class="flex items-center gap-4">
+          <div>
+            <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">
+              Status Filter
+            </label>
+            <select
+              id="status-filter"
+              class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="draft">Draft Only</option>
+              <option value="pending_publish">Pending Publish</option>
+              <option value="published">Published</option>
+              <option value="all">All Statuses</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <div>
+            <label for="sort-toggle" class="block text-sm font-medium text-gray-700 mb-1">
+              Sort Order
+            </label>
+            <button
+              id="sort-toggle"
+              class="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <span id="sort-text">Newest First</span>
+              <svg id="sort-icon" class="w-4 h-4 transform transition-transform" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          
+          <div class="text-right">
+            <div class="text-sm font-medium text-gray-700">Episodes</div>
+            <div class="text-lg font-semibold text-gray-900">
+              <span id="filtered-count">{episodes.length}</span>
+              <span class="text-sm text-gray-500">/ {episodes.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg font-medium text-gray-900">Episode List</h2>
+            <span class="text-sm text-gray-500">Total: {episodes.length}</span>
+          </div>
+          {error && (
+            <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p class="text-sm text-red-600">Error: {error}</p>
+            </div>
+          )}
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Episode
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Title
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Published
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody id="episodes-tbody" class="bg-white divide-y divide-gray-200">
+              {episodes.length === 0 ? (
+                <tr>
+                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                    <div class="text-center">
+                      <p class="text-lg mb-2">No episodes found</p>
+                      <p class="text-sm">Click "Sync from RSS" to load episodes from the RSS worker</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                episodes.map((episode) => (
+                  <tr key={episode.episodeId || episode.episodeNumber}>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      #{episode.episodeNumber}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
+                      {episode.title}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        episode.status === 'published' 
+                          ? 'bg-green-100 text-green-800'
+                          : episode.status === 'pending_publish'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {episode.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(episode.publishDate).toLocaleDateString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {episode.episodeId ? (
+                        <a href={`/episodes/${episode.episodeId}`} class="text-primary-600 hover:text-primary-900">
+                          Edit
+                        </a>
+                      ) : (
+                        <span class="text-gray-400">No ID</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script define:vars={{ episodes }}>
+  // Global episodes data and state
+  const allEpisodes = episodes;
+  let currentFilter = 'draft';
+  let currentSort = 'desc'; // desc = newest first, asc = oldest first
+  let filteredEpisodes = [];
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize from URL parameters
+    initializeFromURL();
+    
+    // Apply initial filter and sort
+    applyFilterAndSort();
+    
+    // Set up event listeners
+    setupEventListeners();
+  });
+
+  function initializeFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    currentFilter = urlParams.get('status') || 'draft';
+    currentSort = urlParams.get('sort') || 'desc';
+    
+    // Update UI controls
+    document.getElementById('status-filter').value = currentFilter;
+    updateSortButton();
+  }
+
+  function setupEventListeners() {
+    // Status filter change
+    document.getElementById('status-filter').addEventListener('change', function() {
+      currentFilter = this.value;
+      applyFilterAndSort();
+      updateURL();
+    });
+
+    // Sort toggle
+    document.getElementById('sort-toggle').addEventListener('click', function() {
+      currentSort = currentSort === 'desc' ? 'asc' : 'desc';
+      updateSortButton();
+      applyFilterAndSort();
+      updateURL();
+    });
+
+    // Sync button functionality
+    const syncButton = document.getElementById('sync-button');
+    const syncText = document.getElementById('sync-text');
+    
+    if (syncButton && syncText) {
+      syncButton.addEventListener('click', async function() {
+        // Disable button and show loading state
+        syncButton.disabled = true;
+        syncText.textContent = 'Syncing...';
+        
+        try {
+          const response = await fetch('/api/sync-rss', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            syncText.textContent = 'Sync Complete!';
+            // Reload the page after a short delay to show updated data
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          } else {
+            throw new Error(`Sync failed: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('Sync failed:', error);
+          syncText.textContent = 'Sync Failed';
+          // Re-enable button after error
+          setTimeout(() => {
+            syncButton.disabled = false;
+            syncText.textContent = 'Sync from RSS';
+          }, 2000);
+        }
+      });
+    }
+  }
+
+  function updateSortButton() {
+    const sortText = document.getElementById('sort-text');
+    const sortIcon = document.getElementById('sort-icon');
+    
+    if (currentSort === 'desc') {
+      sortText.textContent = 'Newest First';
+      sortIcon.style.transform = 'rotate(0deg)';
+    } else {
+      sortText.textContent = 'Oldest First';
+      sortIcon.style.transform = 'rotate(180deg)';
+    }
+  }
+
+  function applyFilterAndSort() {
+    // Filter episodes
+    if (currentFilter === 'all') {
+      filteredEpisodes = [...allEpisodes];
+    } else {
+      filteredEpisodes = allEpisodes.filter(episode => episode.status === currentFilter);
+    }
+
+    // Sort episodes
+    filteredEpisodes.sort((a, b) => {
+      if (currentSort === 'desc') {
+        return b.episodeNumber - a.episodeNumber; // Newest first
+      } else {
+        return a.episodeNumber - b.episodeNumber; // Oldest first
+      }
+    });
+
+    // Update the table
+    renderEpisodesTable();
+    
+    // Update count
+    updateEpisodeCount();
+  }
+
+  function renderEpisodesTable() {
+    const tbody = document.getElementById('episodes-tbody');
+    
+    if (filteredEpisodes.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+            <div class="text-center">
+              <p class="text-lg mb-2">No episodes found</p>
+              <p class="text-sm">Try changing the status filter or sync from RSS</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = filteredEpisodes.map(episode => {
+      const statusClass = episode.status === 'published' 
+        ? 'bg-green-100 text-green-800'
+        : episode.status === 'pending_publish'
+        ? 'bg-blue-100 text-blue-800'
+        : 'bg-yellow-100 text-yellow-800';
+      
+      return `
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            #${episode.episodeNumber}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
+            ${episode.title}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
+              ${episode.status.replace('_', ' ')}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            ${new Date(episode.publishDate).toLocaleDateString()}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            ${episode.episodeId ? 
+              `<a href="/episodes/${episode.episodeId}" class="text-primary-600 hover:text-primary-900">Edit</a>` :
+              '<span class="text-gray-400">No ID</span>'
+            }
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function updateEpisodeCount() {
+    const filteredCount = document.getElementById('filtered-count');
+    filteredCount.textContent = filteredEpisodes.length;
+  }
+
+  function updateURL() {
+    const params = new URLSearchParams();
+    if (currentFilter !== 'draft') params.set('status', currentFilter);
+    if (currentSort !== 'desc') params.set('sort', currentSort);
+    
+    const newURL = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.replaceState({}, '', newURL);
+  }
+</script>

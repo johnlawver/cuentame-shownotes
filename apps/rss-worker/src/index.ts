@@ -52,17 +52,30 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     
+    // Handle CORS preflight requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
+    }
+    
     // Manual trigger endpoint for testing
     if (url.pathname === '/trigger' && request.method === 'POST') {
       if (!checkAuthentication(request, env)) {
-        return new Response('Unauthorized', { status: 401 });
+        return addCORSHeaders(new Response('Unauthorized', { status: 401 }));
       }
       
       try {
         await processRSSFeed(env);
-        return new Response('RSS processing completed', { status: 200 });
+        return addCORSHeaders(new Response('RSS processing completed', { status: 200 }));
       } catch (error) {
-        return new Response(`RSS processing failed: ${error}`, { status: 500 });
+        return addCORSHeaders(new Response(`RSS processing failed: ${error}`, { status: 500 }));
       }
     }
     
@@ -85,14 +98,14 @@ export default {
           : [rssData.rss?.channel?.item];
         
         // Return first few items for inspection
-        return new Response(JSON.stringify({
+        return addCORSHeaders(new Response(JSON.stringify({
           totalItems: items.length,
           sampleItems: items.slice(0, 3)
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
-        });
+        }));
       } catch (error) {
-        return new Response(`Debug failed: ${error}`, { status: 500 });
+        return addCORSHeaders(new Response(`Debug failed: ${error}`, { status: 500 }));
       }
     }
     
@@ -107,60 +120,82 @@ export default {
         }
         
         const episodesIndex = JSON.parse(existingIndexText);
-        return new Response(JSON.stringify({
+        return addCORSHeaders(new Response(JSON.stringify({
           totalEpisodes: episodesIndex.episodes.length,
           lastUpdated: episodesIndex.lastUpdated,
-          episodes: episodesIndex.episodes.map((ep: Episode) => ({
-            episodeNumber: ep.episodeNumber,
-            title: ep.title,
-            publishDate: ep.publishDate,
-            status: ep.status,
-            hasShownotes: !!ep.shownotes
-          }))
+          episodes: episodesIndex.episodes
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
-        });
+        }));
       } catch (error) {
-        return new Response(`Debug KV failed: ${error}`, { status: 500 });
+        return addCORSHeaders(new Response(`Debug KV failed: ${error}`, { status: 500 }));
       }
     }
     
     // Reset/clear KV episodes index
     if (url.pathname === '/reset-kv' && request.method === 'POST') {
       if (!checkAuthentication(request, env)) {
-        return new Response('Unauthorized', { status: 401 });
+        return addCORSHeaders(new Response('Unauthorized', { status: 401 }));
       }
       
       try {
         await env.CUENTAME_SHOWNOTES_DATA.put('episodes_index', JSON.stringify(createEmptyIndex()));
-        return new Response('Episodes index cleared successfully', { status: 200 });
+        return addCORSHeaders(new Response('Episodes index cleared successfully', { status: 200 }));
       } catch (error) {
-        return new Response(`Reset KV failed: ${error}`, { status: 500 });
+        return addCORSHeaders(new Response(`Reset KV failed: ${error}`, { status: 500 }));
       }
     }
     
     // Reprocess RSS with fixed logic (preserves shownotes and other manual data)
     if (url.pathname === '/reprocess' && request.method === 'POST') {
       if (!checkAuthentication(request, env)) {
-        return new Response('Unauthorized', { status: 401 });
+        return addCORSHeaders(new Response('Unauthorized', { status: 401 }));
       }
       
       try {
         await reprocessRSSWithPreservation(env);
-        return new Response('RSS reprocessing completed with fixed episode numbering (shownotes preserved)', { status: 200 });
+        return addCORSHeaders(new Response('RSS reprocessing completed with fixed episode numbering (shownotes preserved)', { status: 200 }));
       } catch (error) {
-        return new Response(`Reprocess failed: ${error}`, { status: 500 });
+        return addCORSHeaders(new Response(`Reprocess failed: ${error}`, { status: 500 }));
+      }
+    }
+    
+    // Update episode endpoint
+    if (url.pathname === '/update-episode' && request.method === 'POST') {
+      if (!checkAuthentication(request, env)) {
+        return addCORSHeaders(new Response('Unauthorized', { status: 401 }));
+      }
+      
+      try {
+        const episode = await request.json() as Episode;
+        await updateEpisodeInKV(env, episode);
+        return addCORSHeaders(new Response('Episode updated successfully', { status: 200 }));
+      } catch (error) {
+        return addCORSHeaders(new Response(`Update episode failed: ${error}`, { status: 500 }));
       }
     }
     
     // Health check endpoint
     if (url.pathname === '/health') {
-      return new Response('RSS Worker is healthy', { status: 200 });
+      return addCORSHeaders(new Response('RSS Worker is healthy', { status: 200 }));
     }
     
-    return new Response('Not Found', { status: 404 });
+    return addCORSHeaders(new Response('Not Found', { status: 404 }));
   }
 };
+
+function addCORSHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 function checkAuthentication(request: Request, env: Env): boolean {
   const authHeader = request.headers.get('Authorization');
@@ -453,4 +488,43 @@ async function reprocessRSSWithPreservation(env: Env): Promise<void> {
   );
   
   console.log(`Reprocessing completed: ${processedCount} episodes processed with preservation of manual data`);
+}
+
+async function updateEpisodeInKV(env: Env, updatedEpisode: Episode): Promise<void> {
+  console.log(`Updating episode ${updatedEpisode.episodeNumber} in KV...`);
+  
+  // Get existing episodes index
+  const existingIndexText = await env.CUENTAME_SHOWNOTES_DATA.get('episodes_index');
+  let episodesIndex: EpisodesIndex;
+  
+  if (existingIndexText && existingIndexText.trim()) {
+    try {
+      episodesIndex = JSON.parse(existingIndexText);
+    } catch (error) {
+      throw new Error('Failed to parse existing episodes index');
+    }
+  } else {
+    throw new Error('No episodes index found');
+  }
+  
+  // Find and update the episode
+  const episodeIndex = episodesIndex.episodes.findIndex(
+    ep => ep.episodeId === updatedEpisode.episodeId
+  );
+  
+  if (episodeIndex === -1) {
+    throw new Error(`Episode with ID ${updatedEpisode.episodeId} not found`);
+  }
+  
+  // Update the episode
+  episodesIndex.episodes[episodeIndex] = updatedEpisode;
+  episodesIndex.lastUpdated = new Date().toISOString();
+  
+  // Save back to KV
+  await env.CUENTAME_SHOWNOTES_DATA.put(
+    'episodes_index',
+    JSON.stringify(episodesIndex)
+  );
+  
+  console.log(`Episode ${updatedEpisode.episodeNumber} updated successfully`);
 }

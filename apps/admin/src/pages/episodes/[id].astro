@@ -1,0 +1,509 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { createRSSWorkerClient } from '../../lib/rss-worker';
+
+const { id } = Astro.params;
+
+let episode = null;
+let error = null;
+
+if (!id) {
+  return Astro.redirect('/episodes');
+}
+
+try {
+  const client = createRSSWorkerClient();
+  const episodes = await client.getEpisodes();
+  episode = episodes.find(ep => ep.episodeId === id);
+  
+  if (!episode) {
+    error = 'Episode not found';
+  }
+} catch (e) {
+  error = e instanceof Error ? e.message : 'Failed to fetch episode';
+  console.error('Error fetching episode:', e);
+}
+
+// Format date for input (YYYY-MM-DD)
+const formatDateForInput = (isoDate: string) => {
+  return new Date(isoDate).toISOString().split('T')[0];
+};
+---
+
+<Layout title={`Edit Episode ${episode?.episodeNumber || ''} - Cuentame Admin`}>
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <a href="/episodes" class="text-primary-600 hover:text-primary-700 text-sm">
+            ← Back to Episodes
+          </a>
+          <h1 class="text-3xl font-bold text-gray-900 mt-2">
+            {episode ? `Edit Episode ${episode.episodeNumber}` : 'Episode Not Found'}
+          </h1>
+        </div>
+      </div>
+
+      {error && (
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <p class="text-red-600">{error}</p>
+        </div>
+      )}
+
+      {episode && (
+        <form id="episode-form" class="space-y-6">
+          <input type="hidden" name="episodeId" value={episode.episodeId} />
+          
+          <!-- Basic Information -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Basic Information</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label for="episodeNumber" class="block text-sm font-medium text-gray-700 mb-2">
+                  Episode Number
+                </label>
+                <input
+                  type="number"
+                  id="episodeNumber"
+                  name="episodeNumber"
+                  value={episode.episodeNumber}
+                  min="0"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label for="status" class="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  id="status"
+                  name="status"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="draft" selected={episode.status === 'draft'}>Draft</option>
+                  <option value="pending_publish" selected={episode.status === 'pending_publish'}>Pending Publish</option>
+                  <option value="published" selected={episode.status === 'published'}>Published</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-6">
+              <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                Title
+              </label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                value={episode.title}
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div>
+                <label for="publishDate" class="block text-sm font-medium text-gray-700 mb-2">
+                  Publish Date
+                </label>
+                <input
+                  type="date"
+                  id="publishDate"
+                  name="publishDate"
+                  value={formatDateForInput(episode.publishDate)}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label for="duration" class="block text-sm font-medium text-gray-700 mb-2">
+                  Duration (HH:MM:SS)
+                </label>
+                <input
+                  type="text"
+                  id="duration"
+                  name="duration"
+                  value={episode.duration}
+                  placeholder="00:25:30"
+                  pattern="^([0-9]{1,2}:)?[0-9]{1,2}:[0-9]{2}$"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div class="mt-6">
+              <label for="audioUrl" class="block text-sm font-medium text-gray-700 mb-2">
+                Audio URL
+              </label>
+              <input
+                type="url"
+                id="audioUrl"
+                name="audioUrl"
+                value={episode.audioUrl}
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Description</h2>
+            <textarea
+              id="description"
+              name="description"
+              rows="6"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Episode description..."
+            >{episode.description}</textarea>
+          </div>
+
+          <!-- Google Docs URLs -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Google Docs URLs</h2>
+            <div id="google-docs-container">
+              {episode.googleDocsUrls.map((url, index) => (
+                <div class="flex gap-2 mb-2" key={index}>
+                  <input
+                    type="url"
+                    name="googleDocsUrls"
+                    value={url}
+                    placeholder="https://docs.google.com/document/..."
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    onchange="updateOpenButton(this)"
+                  />
+                  <a 
+                    href={url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    class="px-3 py-2 text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50"
+                    title="Open in new window"
+                  >
+                    Open
+                  </a>
+                  <button type="button" class="px-3 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-md hover:bg-red-50" onclick="removeGoogleDocsUrl(this)">
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {episode.googleDocsUrls.length === 0 && (
+                <div class="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    name="googleDocsUrls"
+                    placeholder="https://docs.google.com/document/..."
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <button 
+                    type="button" 
+                    class="px-3 py-2 text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    onclick="openGoogleDocsUrl(this)"
+                    disabled
+                  >
+                    Open
+                  </button>
+                  <button type="button" class="px-3 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-md hover:bg-red-50" onclick="removeGoogleDocsUrl(this)">
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+            <button type="button" id="add-google-docs" class="mt-2 text-primary-600 hover:text-primary-700 text-sm">
+              + Add Google Docs URL
+            </button>
+          </div>
+
+          <!-- Shownotes -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Shownotes (Markdown)</h2>
+            <textarea
+              id="shownotes"
+              name="shownotes"
+              rows="12"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+              placeholder="Enter shownotes in Markdown format..."
+            >{episode.shownotes}</textarea>
+            <p class="mt-2 text-sm text-gray-500">
+              Supports Markdown formatting. Leave empty if not yet transcribed.
+            </p>
+          </div>
+
+          <!-- Translations -->
+          <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-4">Translations</h2>
+            <div id="translations-container">
+              {episode.translations.map((translation, index) => (
+                <div class="border border-gray-200 rounded-md p-4 mb-4" key={index}>
+                  <div class="flex justify-between items-center mb-3">
+                    <h4 class="text-sm font-medium text-gray-700">Translation {index + 1}</h4>
+                    <button type="button" class="text-red-600 hover:text-red-700 text-sm" onclick="removeTranslation(this)">
+                      Remove
+                    </button>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">Spanish</label>
+                      <textarea
+                        name="translations[spanish]"
+                        rows="3"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        placeholder="Spanish text..."
+                      >{translation.spanish}</textarea>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">English</label>
+                      <textarea
+                        name="translations[english]"
+                        rows="3"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        placeholder="English translation..."
+                      >{translation.english}</textarea>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">Start Index</label>
+                      <input
+                        type="number"
+                        name="translations[startIndex]"
+                        value={translation.startIndex}
+                        min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">End Index</label>
+                      <input
+                        type="number"
+                        name="translations[endIndex]"
+                        value={translation.endIndex}
+                        min="0"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" id="add-translation" class="text-primary-600 hover:text-primary-700 text-sm">
+              + Add Translation
+            </button>
+          </div>
+
+          <!-- Save Button -->
+          <div class="flex justify-end space-x-4 pt-6">
+            <a href="/episodes" class="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+              Cancel
+            </a>
+            <button
+              type="submit"
+              id="save-button"
+              class="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <span id="save-text">Save Changes</span>
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  </main>
+</Layout>
+
+<script>
+  // Add Google Docs URL functionality
+  document.getElementById('add-google-docs')?.addEventListener('click', function() {
+    const container = document.getElementById('google-docs-container');
+    const newDiv = document.createElement('div');
+    newDiv.className = 'flex gap-2 mb-2';
+    newDiv.innerHTML = `
+      <input
+        type="url"
+        name="googleDocsUrls"
+        placeholder="https://docs.google.com/document/..."
+        class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        onchange="updateOpenButton(this)"
+      />
+      <button 
+        type="button" 
+        class="px-3 py-2 text-blue-600 hover:text-blue-700 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed" 
+        onclick="openGoogleDocsUrl(this)"
+        disabled
+      >
+        Open
+      </button>
+      <button type="button" class="px-3 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-md hover:bg-red-50" onclick="removeGoogleDocsUrl(this)">
+        Remove
+      </button>
+    `;
+    container?.appendChild(newDiv);
+  });
+
+  // Remove Google Docs URL
+  window.removeGoogleDocsUrl = function(button) {
+    button.parentElement?.remove();
+  };
+
+  // Open Google Docs URL in new window
+  window.openGoogleDocsUrl = function(button) {
+    const input = button.parentElement?.querySelector('input[name="googleDocsUrls"]');
+    const url = input?.value;
+    if (url && url.trim()) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  // Update Open button state when URL changes
+  window.updateOpenButton = function(input) {
+    const openButton = input.parentElement?.querySelector('button[onclick="openGoogleDocsUrl(this)"]');
+    if (openButton) {
+      openButton.disabled = !input.value.trim();
+    }
+  };
+
+  // Add Translation functionality
+  document.getElementById('add-translation')?.addEventListener('click', function() {
+    const container = document.getElementById('translations-container');
+    const translationCount = container?.children.length || 0;
+    const newDiv = document.createElement('div');
+    newDiv.className = 'border border-gray-200 rounded-md p-4 mb-4';
+    newDiv.innerHTML = `
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="text-sm font-medium text-gray-700">Translation ${translationCount + 1}</h4>
+        <button type="button" class="text-red-600 hover:text-red-700 text-sm" onclick="removeTranslation(this)">
+          Remove
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Spanish</label>
+          <textarea
+            name="translations[spanish]"
+            rows="3"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            placeholder="Spanish text..."
+          ></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">English</label>
+          <textarea
+            name="translations[english]"
+            rows="3"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            placeholder="English translation..."
+          ></textarea>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mt-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Start Index</label>
+          <input
+            type="number"
+            name="translations[startIndex]"
+            min="0"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">End Index</label>
+          <input
+            type="number"
+            name="translations[endIndex]"
+            min="0"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+          />
+        </div>
+      </div>
+    `;
+    container?.appendChild(newDiv);
+  });
+
+  // Remove Translation
+  window.removeTranslation = function(button) {
+    button.closest('.border')?.remove();
+  };
+
+  // Form submission
+  document.getElementById('episode-form')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const saveButton = document.getElementById('save-button');
+    const saveText = document.getElementById('save-text');
+    
+    // Disable button and show loading state
+    saveButton.disabled = true;
+    saveText.textContent = 'Saving...';
+    
+    try {
+      const formData = new FormData(this);
+      const data = {};
+      
+      // Convert FormData to object, handling arrays properly
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('translations[')) {
+          // Handle translations array
+          if (!data.translations) data.translations = [];
+          // Complex translation parsing would go here
+        } else if (key === 'googleDocsUrls') {
+          // Handle Google Docs URLs array
+          if (!data.googleDocsUrls) data.googleDocsUrls = [];
+          if (value.trim()) data.googleDocsUrls.push(value);
+        } else {
+          data[key] = value;
+        }
+      }
+      
+      // Handle translations manually from DOM
+      data.translations = [];
+      const translationDivs = document.querySelectorAll('#translations-container > .border');
+      translationDivs.forEach(div => {
+        const spanish = div.querySelector('textarea[name="translations[spanish]"]').value;
+        const english = div.querySelector('textarea[name="translations[english]"]').value;
+        const startIndex = parseInt(div.querySelector('input[name="translations[startIndex]"]').value) || 0;
+        const endIndex = parseInt(div.querySelector('input[name="translations[endIndex]"]').value) || 0;
+        
+        if (spanish.trim() || english.trim()) {
+          data.translations.push({ spanish, english, startIndex, endIndex });
+        }
+      });
+
+      // Automatically change status from draft to pending_publish when saving
+      if (data.status === 'draft') {
+        data.status = 'pending_publish';
+        
+        // Update the UI to reflect the change
+        const statusSelect = document.getElementById('status');
+        if (statusSelect) {
+          statusSelect.value = 'pending_publish';
+        }
+      }
+      
+      const response = await fetch('/api/episodes/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (response.ok) {
+        saveText.textContent = 'Saved!';
+        setTimeout(() => {
+          window.location.href = '/episodes';
+        }, 1000);
+      } else {
+        throw new Error(`Save failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Save failed:', error);
+      saveText.textContent = 'Save Failed';
+      setTimeout(() => {
+        saveButton.disabled = false;
+        saveText.textContent = 'Save Changes';
+      }, 2000);
+    }
+  });
+</script>
