@@ -76,6 +76,28 @@ Set in `wrangler.toml` under `[vars]`:
 
 - **RSS_FEED_URL** - The podcast RSS feed URL (default: Cuentame feed)
 
+### Authentication
+
+Sensitive endpoints require bearer token authentication:
+
+```bash
+# Set the auth token as a secret (production)
+wrangler secret put AUTH_TOKEN
+
+# For local testing, create .env file with:
+# AUTH_TOKEN="your-secret-token-here"
+```
+
+**Protected endpoints:**
+- `/trigger` - Manual RSS processing
+- `/reset-kv` - Clear all episodes (destructive)
+- `/reprocess` - Rebuild episodes with preservation
+
+**Public endpoints (no auth required):**
+- `/health` - Health check
+- `/debug-rss` - RSS structure inspection
+- `/debug-kv` - Episodes listing
+
 ### Cron Schedule
 
 The worker runs daily at 6:00 AM UTC. Modify in `wrangler.toml`:
@@ -125,23 +147,26 @@ pnpm run dev
 The worker exposes several endpoints for testing and maintenance:
 
 ```bash
-# Health check
+# Health check (no auth required)
 curl https://your-worker.workers.dev/health
 
-# Manual RSS processing trigger
-curl -X POST https://your-worker.workers.dev/trigger
-
-# Debug RSS structure (helpful for troubleshooting)
+# Debug RSS structure (no auth required)
 curl https://your-worker.workers.dev/debug-rss
 
-# Debug current KV episodes data
+# Debug current KV episodes data (no auth required)
 curl https://your-worker.workers.dev/debug-kv
 
-# Reset/clear all episodes from KV (use with caution)
-curl -X POST https://your-worker.workers.dev/reset-kv
+# Manual RSS processing trigger (requires auth)
+curl -X POST https://your-worker.workers.dev/trigger \
+  -H "Authorization: Bearer your-secret-token"
 
-# Reprocess RSS with fixed episode numbering (preserves shownotes)
-curl -X POST https://your-worker.workers.dev/reprocess
+# Reset/clear all episodes from KV (requires auth, use with caution)
+curl -X POST https://your-worker.workers.dev/reset-kv \
+  -H "Authorization: Bearer your-secret-token"
+
+# Reprocess RSS with fixed episode numbering (requires auth, preserves shownotes)
+curl -X POST https://your-worker.workers.dev/reprocess \
+  -H "Authorization: Bearer your-secret-token"
 ```
 
 ### Local Testing Scripts
@@ -149,19 +174,22 @@ curl -X POST https://your-worker.workers.dev/reprocess
 Convenience scripts in `package.json`:
 
 ```bash
-# Test RSS processing manually
-pnpm run trigger
-
-# Debug RSS feed structure
+# Debug RSS feed structure (no auth required)
 pnpm run debug-rss
 
-# Debug current KV episodes data
+# Debug current KV episodes data (no auth required)  
 pnpm run debug-kv
 
-# Reset/clear all episodes from KV (use with caution)
+# Set your auth token in .env file for protected endpoints
+# Edit .env and set: AUTH_TOKEN="your-secret-token-here"
+
+# Test RSS processing manually (requires auth)
+pnpm run trigger
+
+# Reset/clear all episodes from KV (requires auth, use with caution)
 pnpm run reset-kv
 
-# Reprocess RSS with fixed episode numbering (preserves shownotes)
+# Reprocess RSS with fixed episode numbering (requires auth, preserves shownotes)
 pnpm run reprocess
 
 # Monitor real-time logs

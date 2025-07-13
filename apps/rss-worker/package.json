@@ -8,9 +8,9 @@
         "tail": "wrangler tail",
         "debug-rss": "curl https://cuentame-rss-worker.davesmetalworks.workers.dev/debug-rss",
         "debug-kv": "curl https://cuentame-rss-worker.davesmetalworks.workers.dev/debug-kv",
-        "trigger": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/trigger",
-        "reset-kv": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reset-kv",
-        "reprocess": "curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reprocess",
+        "trigger": "source .env && curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/trigger -H \"Authorization: Bearer ${AUTH_TOKEN}\"",
+        "reset-kv": "source .env && curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reset-kv -H \"Authorization: Bearer ${AUTH_TOKEN}\"",
+        "reprocess": "source .env && curl -X POST https://cuentame-rss-worker.davesmetalworks.workers.dev/reprocess -H \"Authorization: Bearer ${AUTH_TOKEN}\"",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

@@ -25,6 +25,7 @@ interface KVNamespace {
 interface Env {
   CUENTAME_SHOWNOTES_DATA: KVNamespace;
   RSS_FEED_URL: string;
+  AUTH_TOKEN: string;
 }
 
 interface ScheduledEvent {
@@ -53,6 +54,10 @@ export default {
     
     // Manual trigger endpoint for testing
     if (url.pathname === '/trigger' && request.method === 'POST') {
+      if (!checkAuthentication(request, env)) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      
       try {
         await processRSSFeed(env);
         return new Response('RSS processing completed', { status: 200 });
@@ -122,6 +127,10 @@ export default {
     
     // Reset/clear KV episodes index
     if (url.pathname === '/reset-kv' && request.method === 'POST') {
+      if (!checkAuthentication(request, env)) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      
       try {
         await env.CUENTAME_SHOWNOTES_DATA.put('episodes_index', JSON.stringify(createEmptyIndex()));
         return new Response('Episodes index cleared successfully', { status: 200 });
@@ -132,6 +141,10 @@ export default {
     
     // Reprocess RSS with fixed logic (preserves shownotes and other manual data)
     if (url.pathname === '/reprocess' && request.method === 'POST') {
+      if (!checkAuthentication(request, env)) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      
       try {
         await reprocessRSSWithPreservation(env);
         return new Response('RSS reprocessing completed with fixed episode numbering (shownotes preserved)', { status: 200 });
@@ -148,6 +161,21 @@ export default {
     return new Response('Not Found', { status: 404 });
   }
 };
+
+function checkAuthentication(request: Request, env: Env): boolean {
+  const authHeader = request.headers.get('Authorization');
+  const expectedToken = `Bearer ${env.AUTH_TOKEN}`;
+  
+  console.log(`Auth check: header=${authHeader ? 'present' : 'missing'}, token=${env.AUTH_TOKEN ? 'configured' : 'not configured'}`);
+  
+  if (authHeader === expectedToken) {
+    console.log('Authentication successful');
+    return true;
+  } else {
+    console.log('Authentication failed: Invalid or missing token');
+    return false;
+  }
+}
 
 async function processRSSFeed(env: Env): Promise<void> {
   console.log('Starting RSS feed processing...');

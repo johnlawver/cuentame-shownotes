@@ -16,7 +16,5 @@ preview_id = "0fb42b59064241ceac2239d54fa256a1"
 [vars]
 RSS_FEED_URL = "https://anchor.fm/s/4baec630/podcast/rss"
 
-# For production, set secrets with: wrangler secret put ADMIN_USERNAME
-# [secrets]
-# ADMIN_USERNAME = "admin"
-# ADMIN_PASSWORD = "my-secure-password"
+# For production, set auth token with: wrangler secret put AUTH_TOKEN
+# Example: wrangler secret put AUTH_TOKEN
